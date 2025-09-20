@@ -8,6 +8,7 @@ import {
   Loader,
   Search,
   Sparkles,
+  XCircle,
 } from "lucide-react";
 
 // --- DATABASE: Keywords and Job Profiles ---
@@ -247,6 +248,18 @@ const LoadingSkeleton = () => (
 );
 
 const AnalysisResults = ({ results }) => {
+  if (results.error) {
+    return (
+      <div className="text-center p-8 bg-white rounded-xl border border-rose-200">
+        <XCircle className="mx-auto h-12 w-12 text-rose-400" />
+        <h3 className="mt-4 text-xl font-semibold text-slate-800">
+          Analysis Failed
+        </h3>
+        <p className="mt-1 text-slate-500">{results.error}</p>
+      </div>
+    );
+  }
+
   const {
     foundKeywordsBySector,
     totalKeywordsFound,
@@ -328,9 +341,6 @@ const AnalysisResults = ({ results }) => {
               </h3>
             </div>
             <p className="text-slate-600 text-sm italic">{aiSummary}</p>
-            <p className="text-xs text-slate-400">
-              Powered by Gemini AI. This is a placeholder for a real API call.
-            </p>
           </div>
         </div>
       </div>
@@ -408,9 +418,6 @@ const AnalysisResults = ({ results }) => {
               <li key={i}>{q}</li>
             ))}
           </ul>
-          <p className="text-xs text-slate-400">
-            Powered by Gemini AI. This is a placeholder for a real API call.
-          </p>
         </div>
       </div>
     </div>
@@ -422,20 +429,21 @@ export default function App() {
   const [resumeText, setResumeText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [error, setError] = useState(null);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!resumeText.trim()) {
-      alert("Please paste your resume text first.");
+      setError("Please paste your resume text first.");
       return;
     }
 
     setIsLoading(true);
     setAnalysisResult(null);
+    setError(null);
 
-    setTimeout(() => {
+    try {
+      // 1. Local Keyword & Job Analysis (Runs first)
       const lowerCaseText = resumeText.toLowerCase();
-
-      // 1. Keyword Extraction
       const foundKeywordsBySector = {};
       let totalKeywordsFound = 0;
       const allFoundKeywords = new Set();
@@ -453,7 +461,6 @@ export default function App() {
         }
       }
 
-      // 2. Job Role Matching
       const jobMatches = [];
       for (const job in jobProfiles) {
         const profile = jobProfiles[job];
@@ -473,7 +480,6 @@ export default function App() {
       }
       jobMatches.sort((a, b) => b.score - a.score);
 
-      // 3. Generate Recommendations
       const recommendations = [];
       if (jobMatches.length > 0) {
         const topJob = jobProfiles[jobMatches[0].title];
@@ -509,17 +515,82 @@ export default function App() {
         );
       }
 
-      // 4. *** AI Feature Placeholders ***
-      // In a real app, you would make an API call to a backend with the resumeText.
-      // Your backend would then call the Gemini API.
-      const aiSummary =
-        "This candidate appears to be a skilled Full Stack Developer with extensive experience in the MERN stack (MongoDB, Express, React, Node.js) and cloud deployment on AWS. Their background in leading agile teams suggests strong project management capabilities alongside their technical expertise.";
-      const aiQuestions = [
-        "Can you describe the architecture of the microservices-based e-commerce platform you built?",
-        "How did you use Docker and AWS to improve the deployment process in your previous role?",
-        "Walk me through how you approach database design for a new project, specifically when choosing between SQL and NoSQL.",
-      ];
+      // 2. AI-Powered Analysis
+      const apiKey = ""; // This will be handled by the execution environment.
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+      const fetchOptions = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      };
 
+      // Fetch Summary Sequentially
+      const summaryPayload = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `As an expert technical recruiter, summarize the following resume in one professional paragraph. Highlight key skills, experience level, and strengths.\n\n---\n\n${resumeText}`,
+              },
+            ],
+          },
+        ],
+      };
+      const summaryResponse = await fetch(apiUrl, {
+        ...fetchOptions,
+        body: JSON.stringify(summaryPayload),
+      });
+      if (!summaryResponse.ok) {
+        throw new Error("Failed to fetch AI summary.");
+      }
+      const summaryResult = await summaryResponse.json();
+      const aiSummary =
+        summaryResult.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "Could not generate AI summary.";
+
+      // Fetch Questions Sequentially
+      const questionsPayload = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `Based on the following resume, generate 3 challenging interview questions that probe the specific experiences mentioned. Return the response as a JSON object with a single key "questions" which is an array of strings.\n\n---\n\n${resumeText}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              questions: { type: "ARRAY", items: { type: "STRING" } },
+            },
+          },
+        },
+      };
+      const questionsResponse = await fetch(apiUrl, {
+        ...fetchOptions,
+        body: JSON.stringify(questionsPayload),
+      });
+      if (!questionsResponse.ok) {
+        throw new Error("Failed to fetch AI questions.");
+      }
+      const questionsResult = await questionsResponse.json();
+      let aiQuestions = ["Could not generate interview questions."];
+      const questionsJson =
+        questionsResult.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (questionsJson) {
+        try {
+          const parsed = JSON.parse(questionsJson);
+          if (parsed.questions && Array.isArray(parsed.questions)) {
+            aiQuestions = parsed.questions;
+          }
+        } catch (e) {
+          console.error("Failed to parse AI questions:", e);
+        }
+      }
+
+      // 3. Combine results and set state
       setAnalysisResult({
         foundKeywordsBySector,
         totalKeywordsFound,
@@ -528,8 +599,15 @@ export default function App() {
         aiSummary,
         aiQuestions,
       });
+    } catch (err) {
+      console.error("Analysis failed:", err);
+      setAnalysisResult({
+        error:
+          "An error occurred while analyzing the resume. Please try again later.",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -564,11 +642,17 @@ export default function App() {
             <textarea
               id="resume-text"
               value={resumeText}
-              onChange={(e) => setResumeText(e.target.value)}
+              onChange={(e) => {
+                setResumeText(e.target.value);
+                if (error) setError(null);
+              }}
               rows="12"
-              className="w-full p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200 resize-y"
+              className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-shadow duration-200 resize-y ${
+                error ? "border-rose-400" : "border-slate-300"
+              }`}
               placeholder="Paste the full text of a resume here..."
             ></textarea>
+            {error && <p className="text-rose-600 text-sm mt-2">{error}</p>}
             <button
               onClick={handleAnalyze}
               disabled={isLoading}
@@ -576,13 +660,11 @@ export default function App() {
             >
               {isLoading ? (
                 <>
-                  <Loader className="animate-spin h-5 w-5 mr-2" />
-                  Analyzing...
+                  <Loader className="animate-spin h-5 w-5 mr-2" /> Analyzing...
                 </>
               ) : (
                 <>
-                  <Search className="h-5 w-5 mr-2" />
-                  Analyze Resume
+                  <Search className="h-5 w-5 mr-2" /> Analyze Resume
                 </>
               )}
             </button>
