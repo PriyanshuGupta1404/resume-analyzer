@@ -1,200 +1,7 @@
 import React, { useState } from "react";
+import { Sparkles } from "lucide-react"; // Using lucide-react for a nice icon
 
-// --- DATABASE: Keywords and Job Profiles ---
-// (This data is kept as it's the core "database" for the app)
-const sectorKeywords = {
-  "Software Development": [
-    "javascript",
-    "react",
-    "vue",
-    "angular",
-    "node.js",
-    "express",
-    "python",
-    "django",
-    "flask",
-    "java",
-    "spring",
-    "c++",
-    "c#",
-    ".net",
-    "html",
-    "css",
-    "tailwind",
-    "sass",
-    "sql",
-    "mysql",
-    "postgresql",
-    "mongodb",
-    "nosql",
-    "rest",
-    "api",
-    "graphql",
-    "git",
-    "github",
-    "gitlab",
-    "docker",
-    "kubernetes",
-    "aws",
-    "azure",
-    "gcp",
-    "ci/cd",
-    "devops",
-    "microservices",
-    "typescript",
-    "php",
-    "laravel",
-    "ruby",
-    "rails",
-  ],
-  "Data Science & Analytics": [
-    "python",
-    "r",
-    "sql",
-    "tensorflow",
-    "pytorch",
-    "keras",
-    "scikit-learn",
-    "pandas",
-    "numpy",
-    "matplotlib",
-    "seaborn",
-    "machine learning",
-    "deep learning",
-    "nlp",
-    "natural language processing",
-    "data visualization",
-    "statistics",
-    "statistical analysis",
-    "big data",
-    "hadoop",
-    "spark",
-    "etl",
-    "data warehousing",
-    "business intelligence",
-    "tableau",
-    "power bi",
-  ],
-  "Project Management": [
-    "agile",
-    "scrum",
-    "kanban",
-    "lean",
-    "pmp",
-    "prince2",
-    "jira",
-    "confluence",
-    "trello",
-    "asana",
-    "project planning",
-    "risk management",
-    "stakeholder management",
-    "budgeting",
-    "sdlc",
-    "project lifecycle",
-    "gantt chart",
-  ],
-  "UI/UX Design": [
-    "figma",
-    "sketch",
-    "adobe xd",
-    "invision",
-    "zeplin",
-    "user research",
-    "wireframing",
-    "prototyping",
-    "usability testing",
-    "user journey",
-    "ui design",
-    "ux design",
-    "design thinking",
-    "user interface",
-    "user experience",
-    "interaction design",
-    "design system",
-  ],
-};
-
-const jobProfiles = {
-  "Frontend Developer": {
-    keywords: [
-      "html",
-      "css",
-      "javascript",
-      "react",
-      "angular",
-      "vue",
-      "tailwind",
-      "ui design",
-    ],
-    weight: 1.5,
-  },
-  "Backend Developer": {
-    keywords: [
-      "node.js",
-      "python",
-      "java",
-      "sql",
-      "nosql",
-      "api",
-      "docker",
-      "aws",
-      "microservices",
-    ],
-    weight: 1.5,
-  },
-  "Full Stack Developer": {
-    keywords: [
-      "react",
-      "node.js",
-      "sql",
-      "api",
-      "docker",
-      "aws",
-      "html",
-      "css",
-      "javascript",
-      "git",
-    ],
-    weight: 2,
-  },
-  "Data Scientist": {
-    keywords: [
-      "python",
-      "machine learning",
-      "deep learning",
-      "pandas",
-      "scikit-learn",
-      "sql",
-      "statistics",
-      "data visualization",
-    ],
-    weight: 1.8,
-  },
-  "Project Manager": {
-    keywords: [
-      "agile",
-      "scrum",
-      "jira",
-      "project planning",
-      "risk management",
-      "stakeholder management",
-    ],
-    weight: 1.2,
-  },
-  "UI/UX Designer": {
-    keywords: [
-      "figma",
-      "user research",
-      "wireframing",
-      "prototyping",
-      "ui design",
-      "ux design",
-    ],
-    weight: 1.2,
-  },
-};
-
+// --- Sample Resume (for "Try Sample" button) ---
 const sampleResume = `John Doe - Senior Full Stack Developer
 
 Summary:
@@ -222,7 +29,116 @@ export default function App() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [error, setError] = useState(null);
 
-  const handleAnalyze = () => {
+  // --- Gemini API Call Helper ---
+  const getGeminiAnalysis = async (text) => {
+    const apiKey = ""; // API key will be injected by the environment
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+    const systemPrompt =
+      "You are an expert career coach and professional resume reviewer. Analyze the provided resume text and return a JSON object. Your analysis must be constructive, positive, and actionable.";
+
+    const userQuery = `Analyze the following resume text:
+---
+${text}
+---
+Please provide:
+1.  A concise professional summary based on the resume.
+2.  A list of the candidate's key strengths.
+3.  A list of 3-5 specific, actionable recommendations for improvement.
+4.  A list of 3-5 job titles that would be a good fit for this candidate.
+`;
+
+    // Define the JSON schema for the expected response
+    const schema = {
+      type: "OBJECT",
+      properties: {
+        summary: {
+          type: "STRING",
+          description: "A concise professional summary.",
+        },
+        strengths: {
+          type: "ARRAY",
+          items: { type: "STRING" },
+          description: "List of key strengths.",
+        },
+        recommendations: {
+          type: "ARRAY",
+          items: { type: "STRING" },
+          description: "List of actionable recommendations.",
+        },
+        jobFits: {
+          type: "ARRAY",
+          items: { type: "STRING" },
+          description: "List of suitable job titles.",
+        },
+      },
+      required: ["summary", "strengths", "recommendations", "jobFits"],
+    };
+
+    const payload = {
+      contents: [{ parts: [{ text: userQuery }] }],
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: schema,
+        temperature: 0.5,
+      },
+    };
+
+    // Retry logic with exponential backoff
+    let response;
+    let retries = 3;
+    let delay = 1000;
+    while (retries > 0) {
+      try {
+        response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const candidate = result.candidates?.[0];
+          if (candidate && candidate.content?.parts?.[0]?.text) {
+            // Successfully parsed the JSON text
+            return JSON.parse(candidate.content.parts[0].text);
+          } else {
+            throw new Error("Invalid response structure from API.");
+          }
+        } else if (response.status === 429 || response.status >= 500) {
+          // Retry on rate limiting or server errors
+          retries--;
+          if (retries === 0) {
+            throw new Error(
+              `API request failed after retries with status: ${response.status}`
+            );
+          }
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2;
+        } else {
+          // Don't retry on bad requests (e.g., 400)
+          throw new Error(`API request failed with status: ${response.status}`);
+        }
+      } catch (err) {
+        retries--;
+        if (retries === 0) {
+          console.error("API call failed:", err);
+          throw new Error(
+            `An error occurred while fetching the analysis: ${err.message}`
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+    }
+  };
+
+  const handleAnalyze = async () => {
     if (!resumeText.trim()) {
       setError("Please paste your resume text first.");
       return;
@@ -232,142 +148,40 @@ export default function App() {
     setAnalysisResult(null);
     setError(null);
 
-    // Use a setTimeout to simulate a "loading" period
-    // A new coder might do this to make sure the loading spinner shows
-    setTimeout(() => {
-      try {
-        // 1. Local Keyword & Job Analysis
-        const lowerCaseText = resumeText.toLowerCase();
-        const foundKeywordsBySector = {};
-        let totalKeywordsFound = 0;
-        const allFoundKeywords = new Set();
-        for (const sector in sectorKeywords) {
-          const keywords = sectorKeywords[sector];
-          const found = keywords.filter((keyword) => {
-            // Simple string matching is easier than regex for a beginner
-            return lowerCaseText.includes(keyword.toLowerCase());
-          });
-          if (found.length > 0) {
-            foundKeywordsBySector[sector] = found;
-            totalKeywordsFound += found.length;
-            found.forEach((kw) => allFoundKeywords.add(kw));
-          }
-        }
-
-        const jobMatches = [];
-        for (const job in jobProfiles) {
-          const profile = jobProfiles[job];
-          let score = 0;
-          profile.keywords.forEach((kw) => {
-            if (allFoundKeywords.has(kw)) {
-              score += profile.weight;
-            }
-          });
-          const matchPercentage = Math.min(
-            100,
-            (score / (profile.keywords.length * 1.2)) * 100
-          );
-          if (matchPercentage > 10) {
-            jobMatches.push({ title: job, score: matchPercentage.toFixed(0) });
-          }
-        }
-        jobMatches.sort((a, b) => b.score - a.score);
-
-        const recommendations = [];
-        if (jobMatches.length > 0) {
-          const topJob = jobProfiles[jobMatches[0].title];
-          const missingKeywords = topJob.keywords.filter(
-            (kw) => !allFoundKeywords.has(kw)
-          );
-          if (missingKeywords.length > 0) {
-            recommendations.push(
-              `To better fit a <strong>${
-                jobMatches[0].title
-              }</strong> role, consider highlighting skills like: <strong>${missingKeywords
-                .slice(0, 2)
-                .join(", ")}</strong>.`
-            );
-          }
-        }
-        if (!allFoundKeywords.has("git")) {
-          recommendations.push(
-            "Mentioning version control experience with <strong>Git</strong> is crucial for almost any tech role."
-          );
-        }
-        if (
-          foundKeywordsBySector["Software Development"] &&
-          !["aws", "gcp", "azure"].some((cloud) => allFoundKeywords.has(cloud))
-        ) {
-          recommendations.push(
-            "Experience with a cloud platform like <strong>AWS, Azure, or GCP</strong> can significantly improve your profile."
-          );
-        }
-        if (recommendations.length === 0) {
-          recommendations.push(
-            "Your resume shows a strong and diverse skill set. Great work!"
-          );
-        }
-
-        // 2. Set the results
-        setAnalysisResult({
-          foundKeywordsBySector,
-          totalKeywordsFound,
-          jobMatches,
-          recommendations,
-        });
-      } catch (err) {
-        console.error("Analysis failed:", err);
-        setAnalysisResult({
-          error:
-            "An error occurred while analyzing the resume. Please try again later.",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    }, 1000); // Simulate 1 second of loading
+    try {
+      const result = await getGeminiAnalysis(resumeText);
+      setAnalysisResult(result);
+    } catch (err) {
+      console.error("Analysis failed:", err);
+      setError(
+        err.message ||
+          "An error occurred while analyzing the resume. Please try again later."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Helper function to render results (kept inside the App component)
+  // --- Render Functions ---
+
+  // Helper component for list sections
+  const AnalysisSection = ({ title, items }) => (
+    <div>
+      <h3 className="text-lg font-semibold text-slate-800 mb-3">{title}</h3>
+      <ul className="list-disc list-inside space-y-2 text-slate-600 text-sm">
+        {items.map((item, i) => (
+          <li key={i} dangerouslySetInnerHTML={{ __html: item }}></li>
+        ))}
+      </ul>
+    </div>
+  );
+
   const renderResults = () => {
     if (!analysisResult) {
       return null;
     }
 
-    if (analysisResult.error) {
-      return (
-        <div className="text-center p-8 bg-white rounded-xl border border-rose-200">
-          <h3 className="mt-4 text-xl font-semibold text-slate-800">
-            Analysis Failed
-          </h3>
-          <p className="mt-1 text-slate-500">{analysisResult.error}</p>
-        </div>
-      );
-    }
-
-    const {
-      foundKeywordsBySector,
-      totalKeywordsFound,
-      jobMatches,
-      recommendations,
-    } = analysisResult;
-
-    const sortedSectors = Object.entries(foundKeywordsBySector).sort(
-      ([, a], [, b]) => b.length - a.length
-    );
-
-    if (totalKeywordsFound === 0) {
-      return (
-        <div className="text-center p-8 bg-white rounded-xl border border-slate-200">
-          <h3 className="mt-4 text-xl font-semibold text-slate-800">
-            No Keywords Found
-          </h3>
-          <p className="mt-1 text-slate-500">
-            We couldn't find any relevant technical keywords. Try pasting a
-            different resume or adding more specific skills.
-          </p>
-        </div>
-      );
-    }
+    const { summary, strengths, recommendations, jobFits } = analysisResult;
 
     return (
       <div className="space-y-8">
@@ -376,66 +190,31 @@ export default function App() {
           <h2 className="text-2xl font-bold text-slate-900 mb-4">
             Analysis Overview
           </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
-              <h3 className="text-lg font-semibold text-slate-800">
-                Keyword Analysis
-              </h3>
-              <p className="text-slate-600">
-                Found <strong>{totalKeywordsFound}</strong> keywords, with a
-                primary focus on{" "}
-                <strong>{sortedSectors[0]?.[0] || "N/A"}</strong>.
-              </p>
-              <div className="pt-2">
-                {sortedSectors.map(([sector, keywords]) => (
-                  <div key={sector} className="mb-3">
-                    <span className="text-sm font-medium text-slate-700">
-                      {sector}: {keywords.length} keywords found
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
+            <h3 className="text-lg font-semibold text-slate-800">
+              Professional Summary
+            </h3>
+            <p className="text-slate-600 text-sm leading-relaxed">{summary}</p>
+          </div>
+        </div>
 
-            <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
-              <h3 className="text-lg font-semibold text-slate-800">
-                Top Job Roles
-              </h3>
-              <div className="space-y-4">
-                {jobMatches.slice(0, 3).map((match) => (
-                  <div key={match.title}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium text-slate-700">
-                        {match.title}
-                      </span>
-                      <span className="text-sm font-medium text-emerald-600">
-                        {match.score}% Match
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2.5">
-                      <div
-                        className="bg-emerald-500 h-2.5 rounded-full"
-                        style={{ width: `${match.score}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Details */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
+            <AnalysisSection title="Key Strengths" items={strengths} />
+          </div>
+          <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
+            <AnalysisSection title="Suitable Job Roles" items={jobFits} />
           </div>
         </div>
 
         {/* Recommendations */}
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            Recommendations
+            Actionable Recommendations
           </h2>
           <div className="p-6 bg-white rounded-xl border border-slate-200 space-y-4">
-            <ul className="list-disc list-inside space-y-2 text-slate-600 text-sm">
-              {recommendations.map((rec, i) => (
-                <li key={i} dangerouslySetInnerHTML={{ __html: rec }}></li>
-              ))}
-            </ul>
+            <AnalysisSection title="" items={recommendations} />
           </div>
         </div>
       </div>
@@ -446,11 +225,12 @@ export default function App() {
     <div className="bg-slate-50 min-h-screen font-sans text-slate-800">
       <div className="container mx-auto max-w-5xl px-4 py-12">
         <header className="text-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">
-            Resume Analyzer
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight flex items-center justify-center gap-3">
+            <Sparkles className="w-8 h-8 text-sky-500" />
+            AI Resume Analyzer
           </h1>
           <p className="text-slate-600 mt-3 text-lg">
-            Paste your resume text below to get started.
+            Paste your resume text below for an AI-powered analysis.
           </p>
         </header>
 
@@ -464,7 +244,11 @@ export default function App() {
                 Paste Resume Content
               </label>
               <button
-                onClick={() => setResumeText(sampleResume)}
+                onClick={() => {
+                  setResumeText(sampleResume);
+                  setError(null);
+                  setAnalysisResult(null);
+                }}
                 className="text-xs font-semibold text-sky-600 hover:text-sky-800 transition-colors"
               >
                 Try Sample
@@ -483,40 +267,81 @@ export default function App() {
               }`}
               placeholder="Paste the full text of a resume here..."
             ></textarea>
-            {error && <p className="text-rose-600 text-sm mt-2">{error}</p>}
+            {error && (
+              <p className="text-rose-600 text-sm mt-2">
+                <strong>Error:</strong> {error}
+              </p>
+            )}
             <button
               onClick={handleAnalyze}
               disabled={isLoading}
               className="mt-4 w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-300 transition-all duration-300 flex items-center justify-center disabled:bg-slate-400 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Analyzing..." : "Analyze Resume"}
+              {isLoading ? (
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              ) : (
+                <Sparkles className="w-4 h-4 mr-2" />
+              )}
+              {isLoading ? "Analyzing..." : "Analyze with AI"}
             </button>
           </div>
 
           <div className="mt-10">
-            {/* Instead of a separate "LoadingSkeleton" component,
-              a new coder would just put a simple loading message here.
-            */}
             {isLoading && (
-              <div className="text-center p-8">
-                <p className="text-lg font-semibold text-slate-600">
-                  Loading...
+              <div className="text-center p-8 flex flex-col items-center justify-center">
+                <svg
+                  className="animate-spin h-8 w-8 text-sky-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <p className="text-lg font-semibold text-slate-600 mt-4">
+                  AI is analyzing the resume...
                 </p>
               </div>
             )}
 
-            {/*
-              Instead of a separate "AnalysisResults" component,
-              we just call a render function or put the JSX inline.
-            */}
-            {renderResults()}
+            {!isLoading && renderResults()}
           </div>
         </main>
 
         <footer className="text-center mt-12 text-slate-500 text-sm">
           <p>
-            &copy; {new Date().getFullYear()} Resume Analyzer. Built with React
-            & Tailwind CSS.
+            &copy; {new Date().getFullYear()} AI Resume Analyzer. Powered by
+            Gemini.
           </p>
         </footer>
       </div>
